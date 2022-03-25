@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <initializer_list>
 #include <algorithm>
@@ -22,7 +22,6 @@ public:
     using Iterator = Type*;
     using ConstIterator = const Type*;
 
- 
     SimpleVector() noexcept = default;
 
     explicit SimpleVector(size_t size) : items_(size), size_(size), capacity_(size) {}
@@ -39,10 +38,10 @@ public:
         std::copy(other.begin(), other.end(), this->begin());
     }
 
-    SimpleVector(SimpleVector&& other)  noexcept : SimpleVector() {
+    SimpleVector(SimpleVector&& other) : SimpleVector()  {
         swap(other);
     }
- 
+
     SimpleVector(ReserveProxyObj r) : items_(r.GetCapacity()), size_(0), capacity_(r.GetCapacity()) {}
 
     SimpleVector& operator=(const SimpleVector& rhs) {
@@ -60,93 +59,81 @@ public:
         {
             delete[] items_.Release();
             SimpleVector tmp(std::move(rhs));
-            swap(tmp);
+            swap(tmp);   
         }
         return *this;
     }
 
     void PushBack(const Type& item) {
         if (size_ < capacity_) {
-            items_[size_] = item;
             ++size_;
         }
         else {
-            size_t new_capacity = capacity_ == 0 ? 1 : 2 * capacity_;
-            ArrayPtr<Type> resize_vector(new_capacity);
-            std::copy(this->begin(), this->end(), resize_vector.Get());
-            resize_vector[size_] = item;
-            delete[] items_.Release();
-            items_.swap(resize_vector);
-            ++size_;
-            capacity_ = new_capacity;
+            Resize(size_ + 1);
         }
+        items_[size_ - 1] = item;
     }
 
     void PushBack(Type&& item) {
         if (size_ < capacity_) {
-            items_[size_] = std::move(item);
             ++size_;
         }
         else {
-            size_t new_capacity = capacity_ == 0 ? 1 : 2 * capacity_;
-            ArrayPtr<Type> resize_vector(new_capacity);
-            std::move(this->begin(), this->end(), resize_vector.Get());
-            resize_vector[size_] = std::move(item);
-            delete[] items_.Release();
-            items_.swap(resize_vector);
-            ++size_;
-            capacity_ = new_capacity;
+            Resize(size_ + 1);
         }
+        items_[size_ - 1] = std::move(item);
     }
 
     Iterator Insert(ConstIterator pos, const Type& value) {
-        Iterator r;
-        if (size_ < capacity_)
-        {
-            ConstIterator old_end = this->end();
-            ++size_;
-            std::copy_backward(pos, old_end, this->end());
-            r = const_cast<Iterator>(pos);
+        assert(pos >= this->begin() && pos <= this->end());
+        Iterator pos_ = const_cast<Iterator>(pos);
+        Iterator old_end_ = this->end();
+        size_t pos_indx = pos_ - this->begin();
+
+        if (pos_ == this->end()) {
+            PushBack(value);
         }
-        else
-        {
-            size_t new_capacity = capacity_ == 0 ? 1 : 2 * capacity_;
-            ArrayPtr<Type> new_vector(new_capacity);
-            r = std::copy(this->cbegin(), pos, new_vector.Get());
-            std::copy_backward(pos, this->cend(), new_vector.Get() + size_ + 1);
-            delete[] items_.Release();
-            items_.swap(new_vector);
-            ++size_;
-            capacity_ = new_capacity;
+        else {
+            if (size_ < capacity_)
+            {
+                ++size_;
+            }
+            else
+            {
+                Resize(size_ + 1);
+                pos_ = this->begin() + pos_indx;
+                old_end_ = this->end() - 1;
+            }
+            std::copy_backward(pos_, old_end_, this->end());
+            *pos_ = value;
         }
-        *r = value;
-        return r;
+        return pos_;
     }
 
     Iterator Insert(ConstIterator pos, Type&& value) {
-        Iterator r;
+        assert(pos >= this->begin() && pos <= this->end());
         Iterator pos_ = const_cast<Iterator>(pos);
-        if (size_ < capacity_)
-        {
-            Iterator old_end = this->end();
-            ++size_;
-            std::move_backward(pos_, old_end, this->end());
-            r = pos_;
-        }
-        else
-        {
-            size_t new_capacity = capacity_ == 0 ? 1 : 2 * capacity_;
-            ArrayPtr<Type> new_vector(new_capacity);
+        Iterator old_end_ = this->end();
+        size_t pos_indx = pos_ - this->begin();
 
-            r = std::move(this->begin(), pos_, new_vector.Get());
-            std::move_backward(pos_, this->end(), new_vector.Get() + size_ + 1);
-            delete[] items_.Release();
-            items_.swap(new_vector);
-            ++size_;
-            capacity_ = new_capacity;
+        if (pos_ == this->end()) {
+            PushBack(std::move(value));
         }
-        *r = std::move(value);
-        return r;
+        else {
+            if (size_ < capacity_)
+            {
+                ++size_;
+            }
+            else
+            {
+                Resize(size_ + 1);
+                pos_ = this->begin() + pos_indx;
+                old_end_ = this->end() - 1;
+            }
+            std::move_backward(pos_, old_end_, this->end());
+            *pos_ = std::move(value);
+        }
+        return pos_;
     }
 
     void PopBack() noexcept {
@@ -154,16 +141,18 @@ public:
             --size_;
         }
     }
-
+    
     Iterator Erase(ConstIterator pos) {
+        assert(pos >= this->begin() && pos < this->end());
         Iterator r = const_cast<Iterator>(pos);
         Iterator begin = const_cast<Iterator>(pos + 1);
-
-        std::move(begin, this->end(), r);
+        if (pos != this->end() - 1) {
+            std::move(begin, this->end(), r);
+        }
         --size_;
         return r;
     }
-
+    
     void swap(SimpleVector& other) noexcept {
         items_.swap(other.items_);
         std::swap(this->size_, other.size_);
@@ -183,10 +172,12 @@ public:
     }
 
     Type& operator[](size_t index) noexcept {
+        assert(index < size_);
         return items_[index];
     }
 
     const Type& operator[](size_t index) const noexcept {
+        assert(index < size_);
         return items_[index];
     }
 
@@ -203,7 +194,6 @@ public:
         }
         return items_[index];
     }
-
 
     void Clear() noexcept {
         size_ = 0;

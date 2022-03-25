@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstdlib>
 
 template <typename Type>
@@ -22,8 +23,13 @@ public:
     // Конструктор из сырого указателя, хранящего адрес массива в куче либо nullptr
     explicit ArrayPtr(Type* raw_ptr) noexcept : raw_ptr_(raw_ptr) { }
 
+
     // Запрещаем копирование
     ArrayPtr(const ArrayPtr&) = delete;
+
+    ArrayPtr(ArrayPtr&& other) noexcept : ArrayPtr() {
+        swap(other);
+    }
 
     ~ArrayPtr() {
         delete[] raw_ptr_;
@@ -31,6 +37,16 @@ public:
 
     // Запрещаем присваивание
     ArrayPtr& operator=(const ArrayPtr&) = delete;
+
+    ArrayPtr& operator=(ArrayPtr&& rhs) noexcept {
+        if (this != &rhs)
+        {
+            delete raw_ptr_;
+            ArrayPtr tmp(std::move(rhs));
+            swap(tmp);
+        }
+        return *this;
+    }
 
     // Прекращает владением массивом в памяти, возвращает значение адреса массива
     // После вызова метода указатель на массив должен обнулиться
@@ -62,9 +78,10 @@ public:
 
     // Обменивается значениям указателя на массив с объектом other
     void swap(ArrayPtr& other) noexcept {
-        Type* ptr = raw_ptr_;
-        raw_ptr_ = other.raw_ptr_;
-        other.raw_ptr_ = ptr;
+        Type* ptr;
+        std::swap(ptr, raw_ptr_);
+        std::swap(raw_ptr_, other.raw_ptr_);
+        std::swap(other.raw_ptr_, ptr);
     }
 
 private:
